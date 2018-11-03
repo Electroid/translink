@@ -59,3 +59,8 @@ typings/
 
 # next.js build output
 .next
+
+# Project specific
+.DS_Store
+deploy/secret.yml
+Old/
