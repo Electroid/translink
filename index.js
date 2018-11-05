@@ -2,11 +2,14 @@ const sleep = require('sleep-promise')
 const Translink = require('./src/translink')
 const Sql = require('./src/sql_google')
 
+var translink = null
+var sql = null
+
 function init() {
-	var translink = new Translink(
+	translink = new Translink(
 		env('TRANSLINK_API_KEY')
 	)
-	var sql = new Sql(
+	sql = new Sql(
 		env('SQL_GOOGLE_ID'),
 		env('SQL_HOSTNAME'),
 		env('SQL_DATABASE'),
