@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "author": "Ashcon Partovi",
   "email": "ashcon@partovi.net",
-  "description": "",
+  "description": "Records and processes TransLink bus locations in Metro Vancouver",
   "keywords": [
     "translink",
     "vancouver",
@@ -17,7 +17,7 @@
     "url": "github:Electroid/translink"
   },
   "license": "MIT",
-  "main": "app.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "build": "webpack",
