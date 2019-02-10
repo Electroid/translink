@@ -21,9 +21,20 @@ module.exports = {
     plugins: []
   },
   module: {
-    rules: [{
-      test: /\.js?$/,
-      exclude: /node_modules/
-    }]
+    rules: [
+      {
+        test: /\.js?$/,
+        exclude: /node_modules/
+      },
+      {
+        test: /\.(sql|txt)?$/,
+        use: [
+          {
+            loader: 'raw-loader',
+            options: {}
+          }
+        ]
+      }
+    ]
   }
 }

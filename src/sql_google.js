@@ -39,11 +39,11 @@ class SqlGoogle extends Sql {
             null
         )
         var config
-        if(process.env.GOOGLE) {
+        if(production()) {
             config = {projectId: this.projectId}
         } else {
             config = {projectId: this.projectId, keyFilename: keyPath}
-            fs.writeFileSync(keyPath, key)
+            fs.writeFileSync(keyPath, JSON.stringify(key))
         }
         this.bigQuery = new BigQuery(config)
         this.storage = new Storage(config)
@@ -131,7 +131,8 @@ class SqlGoogle extends Sql {
                     entity: `user-${sql.serviceAccountEmailAddress}`,
                     role: 'WRITER'
                 })))
-            .then(ok => this.request(
+            .then(() => this.showColumns(table))
+            .then(fields => this.request(
                 `https://www.googleapis.com/sql/v1beta4/projects/${this.projectId}/instances/${this.id}/export`,
                 {
                     exportContext: {
@@ -140,8 +141,7 @@ class SqlGoogle extends Sql {
                         databases: [this.name],
                         csvExportOptions: {
                             selectQuery: [
-                                // #assertTable(name, fields) must have been called for fields to exist.
-                                `SELECT '${this.fields[table].join("','")}'`,
+                                `SELECT '${fields.join("','")}'`,
                                 `UNION ALL`,
                                 `SELECT * FROM ${table}`
                             ].join("\n")

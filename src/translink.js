@@ -1,5 +1,6 @@
 const http = require('request-promise')
 const time = require('moment-timezone')
+const timezone = 'America/Vancouver'
 
 /**
  * Represents access to real-time location data from Translink buses.
@@ -10,7 +11,6 @@ class Translink {
 
     constructor(apiKeys) {
         this.apiKeys = apiKeys.split(',')
-        this.apiKeyCursor = 0
     }
 
     /**
@@ -18,13 +18,6 @@ class Translink {
      */
     get apiKey() {
         return this.apiKeys[Math.floor(Math.random() * this.apiKeys.length)]
-        // TODO(ashcon): remove stateful selection, opt for stateless random selection
-        /*
-        if(this.apiKeyCursor < 0) {
-            this.apiKeyCursor = this.apiKeys.length - 1
-        }
-        return this.apiKeys[this.apiKeyCursor--]
-        */
     }
 
     /**
@@ -37,7 +30,7 @@ class Translink {
     fetch(resource, params = {}) {
         params.apikey = this.apiKey
         var query = Object.keys(params).map(key => `${key}=${params[key]}`).join('&')
-        return http(`https://api.translink.ca/rttiapi/v1/${resource}?${query}`, {simple: true, json: true, timeout: 30 * 1000})
+        return http(`https://api.translink.ca/rttiapi/v1/${resource}?${query}`, {simple: true, json: true, timeout: 5 * 1000})
     }
 
     /**
@@ -67,7 +60,7 @@ class Translink {
                 pattern: data.Pattern,
                 latitude: parseFloat(data.Latitude),
                 longitude: parseFloat(data.Longitude),
-                time: Translink.parseLocalTime(data.RecordedTime).toISOString()
+                time: Translink.parseLocalTime(data.RecordedTime)
             }
             // Buses occasionally ping a location of (0, 0) on startup.
             if(bus.longitude != 0 && bus.latitude != 0) {
@@ -80,37 +73,49 @@ class Translink {
     }
 
     /**
-     * Gets the current local time in Vancouver.
+     * Get or convert to the local time in Vancouver.
      *
+     * @param {object} input Optional date to convert to local time.
      * @returns {date} Local time in Vancouver.
      */
-    static getLocalTime() {
-        return time().tz('America/Vancouver')
+    static getLocalTime(input = null) {
+        if(input) {
+            return time(input).tz(timezone)
+        } else {
+            return time().tz(timezone)
+        }
     }
 
     /**
      * Parse human-readable timestamp into ISO format.
      *
-     * @param {date} data Historical timestamp in Vancouver time (ie. '09:27:25 pm').
+     * @param {date} input Historical timestamp in Vancouver time (ie. '09:27:25 pm').
      * @returns {date} ISO-formated timestamp.
      */
-    static parseLocalTime(data) {
-        var [iso, xm] = data.split(' ')
-        var now = Translink.getLocalTime()
-        var day = now.format('YYYY-MM-DD')
-        var offset = now.toDate().getTimezoneOffset() % 60
-        var date = new Date(`${day}T${iso}.000${offset}`)
-        // Convert from am-pm to 24-hour format.
-        if(xm == 'pm') {
-            date.setMilliseconds(date.getMilliseconds() + 12 * 60 * 60 * 1000)
+    static parseLocalTime(input) {
+        var day = Translink.getLocalTime().format('YYYY-MM-DD')
+        var unix = Translink.getLocalTime(day).unix()
+        if(production()) {
+            unix += 28800 // HACK(ashcon): mysterious offset, also seen in Google SQL
         }
+        var [iso, xm] = input.split(' ')
+        var [hours, minutes, seconds] = iso.split(':').map((i) => parseInt(i))
+        // Convert from am-pm to 24-hour format.
+        if(xm === 'pm' && hours < 12) {
+            hours += 12
+        } else if(xm === 'am' && hours == 12) {
+            hours -= 12
+        }
+        unix += hours * 60 * 60
+        unix += minutes * 60
+        unix += seconds
         // Since dates are always historical, future dates are the result
         // of date overflow when the string is from the previous day and the
         // computer is in the next day.
-        if(date > now.toDate()) {
-            date.setMilliseconds(date.getMilliseconds() - 24 * 60 * 60 * 1000)
+        if(unix > Date.now() / 1000) {
+            unix -= 24 * 60 * 60
         }
-        return date
+        return Translink.getLocalTime(unix * 1000).format()
     }
 
 }

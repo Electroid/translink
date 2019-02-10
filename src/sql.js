@@ -1,4 +1,5 @@
 const sql = require('promise-mysql')
+const fs = require('fs')
 
 /**
  * Standard SQL database that can send queries.
@@ -15,13 +16,23 @@ class Sql {
      */
     constructor(host, db, user, pwd) {
         this.fields = {}
-        this.db = sql.createPool({
+        this.login = {
             host: host,
             database: db,
             user: user,
             password: pwd,
             connectionLimit: 5
-        })
+        }
+    }
+
+    /**
+     * Establish an active connection with the SQL database.
+     *
+     * @returns {object} The SQL database pool connection.
+     */
+    connection() {
+        if(this.db) return this.db
+        return this.db = sql.createPool(this.login)
     }
 
     /**
@@ -31,7 +42,26 @@ class Sql {
      * @returns {promise<object>} The response from the SQL database.
      */
     query(statement) {
-        return this.db.query(statement)
+        return this.connection().query(statement)
+    }
+
+    /**
+     * Send a query from a file to the SQL database and await a response.
+     *
+     * @param {string} file The name of the SQL file to query.
+     * @returns {promise<object>} The response from the SQL database.
+     */
+    queryFromFile(file) {
+        var path = `../sql/${file}.sql`
+        return new Promise((resolve, reject) => {
+            fs.readFile(path, 'utf8', (err, statement) => {
+                if(err) {
+                    reject(err)
+                } else {
+                    resolve(statement)
+                }
+            })
+        }).then(statement => this.query(statement))
     }
 
     /**
@@ -45,9 +75,19 @@ class Sql {
      * @returns {promise<array<string>} Array of field name from the table.
      */
     assertTable(name, fields) {
-        return this.query(`CREATE TABLE IF NOT EXISTS ${name} (${fields.join(',')});`)
-            .then(response => this.query(`SHOW COLUMNS FROM ${name}`)
-                .then(fields => this.fields[name] = fields.map(field => field.Field)))
+        return this.query(`CREATE TABLE IF NOT EXISTS ${name} (${fields.join(',')})`)
+            .then(() => this.showColumns(name))
+    }
+
+    /**
+     * Get the array of field names from a table.
+     *
+     * @param {string} table Name of the table.
+     * @returns {promise<array<string>>} Array of field names from the table.
+     */
+    showColumns(table) {
+        return this.query(`SHOW COLUMNS FROM ${table}`)
+            .then(fields => fields.map(field => field.Field))
     }
 
     /**
@@ -66,7 +106,21 @@ class Sql {
             values = [values]
         }
         values = values.map(val => `(${val.join(',')})`)
-        return this.query(`INSERT IGNORE INTO ${name} VALUES ${values.join(',')};`)
+        return this.query(`INSERT IGNORE INTO ${name} VALUES ${values.join(',')}`)
+    }
+
+    /**
+     * Forcibly close the connection pool to the SQL database.
+     *
+     * @returns {promise} Promise when the connection is closed.
+     */
+    close() {
+        if(this.db) {
+            var old = this.db
+            this.db = null
+            return old.end()
+        }
+        return Promise.resolve()
     }
 
     /**

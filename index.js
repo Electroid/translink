@@ -1,14 +1,16 @@
 const Translink = require('./src/translink')
 const Sql = require('./src/sql_google')
 
-function env(name) {
-    return process.env[name]
+var translink
+var sql
+
+function init() {
+    translink = new Translink(env('TRANSLINK_API_KEY'))
+    sql = new Sql(env('SQL_GOOGLE_ID'), env('SQL_HOSTNAME'), env('SQL_DATABASE'), env('SQL_USERNAME'), env('SQL_PASSWORD'), env('SQL_GOOGLE_KEY'))
 }
 
-exports.event = (event, context) => {
-    var translink = new Translink(env('TRANSLINK_API_KEY'))
-    var sql = new Sql(env('SQL_GOOGLE_ID'), env('SQL_HOSTNAME'), env('SQL_DATABASE'), env('SQL_USERNAME'), env('SQL_PASSWORD'), env('SQL_GOOGLE_KEY'))
-    sql.assertTable('bus', [
+function download() {
+    return sql.assertTable('bus', [
         'vehicle INT NOT NULL',
         'trip BIGINT NOT NULL',
         'route SMALLINT NOT NULL',
@@ -19,12 +21,45 @@ exports.event = (event, context) => {
         'longitude DECIMAL(9,6) NOT NULL',
         'time DATETIME NOT NULL',
         'PRIMARY KEY (trip, time)'
-    ]).then(() => {
-        var message = Buffer.from(event.data, 'base64').toString()
-        if(message === 'import') {
-            translink.buses.then(list => sql.insertRow('bus', list))
-        } else if(message === 'export') {
-            sql.exportToBigQuery('bus', `bus/${Translink.getLocalTime().format()}`)
+    ]).then(() => translink.buses)
+      .then((list) => {console.log(list); return list;})
+      .then((list) => sql.insertRow('bus', list))
+      .then(() => sql.close())
+}
+
+function upload() {
+    return sql.exportToBigQuery('bus', `bus/${Translink.getLocalTime().format()}`)
+}
+
+function event(event, context) {
+    var data = null
+    if(event) {
+        try {
+            data = Buffer.from(event.data, 'base64').toString()
+        } catch(err) {
+            data = event.toString()
         }
-    })
+    }
+    if(data === 'download') {
+        return download()
+    } else if(data === 'upload') {
+        return upload()
+    } else {
+        return Promise.reject(new Error(`Unknown message: ${data}`))
+    }
+}
+
+require('./src/util')
+
+// HACK(ashcon): bundle but do not run
+if(new Date() < 0) {
+    require('./sql/table/bus.sql')
+}
+
+init()
+
+if(production()) {
+    exports.event = event
+} else {
+    download().catch((err) => console.error(err))
 }

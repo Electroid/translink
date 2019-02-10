@@ -62,5 +62,5 @@ typings/
 
 # Project specific
 .DS_Store
-deploy/secret.yml
-Old/
+secret.*
+google-*.json
