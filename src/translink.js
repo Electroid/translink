@@ -30,7 +30,10 @@ class Translink {
     fetch(resource, params = {}) {
         params.apikey = this.apiKey
         var query = Object.keys(params).map(key => `${key}=${params[key]}`).join('&')
-        return http(`https://api.translink.ca/rttiapi/v1/${resource}?${query}`, {simple: true, json: true, timeout: 5 * 1000})
+        return http(
+        	`https://api.translink.ca/rttiapi/v1/${resource}?${query}`,
+        	{simple: true, json: true, timeout: 5 * 1000}
+        )
     }
 
     /**
@@ -39,35 +42,35 @@ class Translink {
      * @returns {promise<object>} Promise of a list of parsed bus objects.
      */
     get buses() {
-        return this.fetch('buses').then(buses => buses.map(bus => Translink.parseBus(bus)).filter(Boolean))
+        return this.fetch('buses').then(buses => buses.map(bus => this.parseBus(bus)).filter(Boolean))
     }
-
     /**
      * Parse and validate raw bus data from the Translink API.
      *
      * @param {object} data Raw bus object.
      * @returns {object} Parsed bus object or null if invalid.
      */
-    static parseBus(data) {
+    parseBus(data) {
         try {
             var bus = {
-                vehicle: parseInt(data.VehicleNo),
-                trip: parseInt(data.TripId),
-                // Use negative numbers for NightBus to avoid route collision.
-                route: parseInt(data.RouteNo.replace('N', '-')),
+                vehicle: data.VehicleNo,
+                trip: data.TripId,
+                route: data.RouteNo.replace(/^0+/, ''),
                 direction: data.Direction,
                 destination: data.Destination,
                 pattern: data.Pattern,
-                latitude: parseFloat(data.Latitude),
                 longitude: parseFloat(data.Longitude),
-                time: Translink.parseLocalTime(data.RecordedTime)
+                latitude: parseFloat(data.Latitude),
+                time: this.parseLocalTime(data.RecordedTime)
             }
             // Buses occasionally ping a location of (0, 0) on startup.
-            if(bus.longitude != 0 && bus.latitude != 0) {
-                return bus
-            }
+            if(bus.longitude == 0 || bus.latitude == 0) return null
+            // Add synthetic fields for BigQuery analysis.
+            bus.id = `${bus.vehicle}-${bus.time}`
+            bus.location = `POINT(${bus.longitude} ${bus.latitude})`
+            return bus
         } catch(err) {
-            console.error(`Could not process bus ${data} because of ${err}`)
+            console.error(`Could not process bus ${JSON.stringify(data)} because of ${err}`)
         }
         return null
     }
@@ -78,7 +81,7 @@ class Translink {
      * @param {object} input Optional date to convert to local time.
      * @returns {date} Local time in Vancouver.
      */
-    static getLocalTime(input = null) {
+    getLocalTime(input = null) {
         if(input) {
             return time(input).tz(timezone)
         } else {
@@ -92,11 +95,13 @@ class Translink {
      * @param {date} input Historical timestamp in Vancouver time (ie. '09:27:25 pm').
      * @returns {date} ISO-formated timestamp.
      */
-    static parseLocalTime(input) {
-        var day = Translink.getLocalTime().format('YYYY-MM-DD')
-        var unix = Translink.getLocalTime(day).unix()
+    parseLocalTime(input) {
+        var day = this.getLocalTime().format('YYYY-MM-DD')
+        var unix = this.getLocalTime(day).unix()
+        // HACK(ashcon): mysterious offset, also seen in Google SQL,
+        //               possibly due to timezone differences
         if(production()) {
-            unix += 28800 // HACK(ashcon): mysterious offset, also seen in Google SQL
+            unix += 28800
         }
         var [iso, xm] = input.split(' ')
         var [hours, minutes, seconds] = iso.split(':').map((i) => parseInt(i))
@@ -115,9 +120,11 @@ class Translink {
         if(unix > Date.now() / 1000) {
             unix -= 24 * 60 * 60
         }
-        return Translink.getLocalTime(unix * 1000).format()
+        return this.getLocalTime(unix * 1000).format()
     }
 
 }
 
-module.exports = Translink
+module.exports = exports = function() {
+    return new Translink(arguments['0'])
+}

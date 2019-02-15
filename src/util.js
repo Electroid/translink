@@ -14,3 +14,11 @@ global.env = function(name) {
     	return require(name.replace(/.*/, '../secret.json'))[name]
     }
 }
+
+process.on('unhandledRejection', (err, promise) => {
+	throw err
+})
+
+process.on('SIGINT', () => {
+	process.exit(1)
+})
