@@ -1,5 +1,13 @@
+# Project files
 .DS_Store
 node_modules/
-worker/
 dist/
+
+# Deployment files
+worker/
 wrangler.toml
+.terraform
+
+# Secret files
+google.json
+*.tfstate*
