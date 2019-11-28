@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+
+const fs = require('fs')
+const path = require('path')
+
+if(new Set(process.argv).has('-u')) {
+  const { spawnSync } = require('child_process')
+  const update = spawnSync('npm', ['run', 'build'])
+  
+  if(update.error) { throw update.error }
+  if(update.stderr) { console.error(update.stderr.toString()) }
+  if(update.stdout) { console.log(update.stdout.toString()) }
+}
+
+const script = fs.readFileSync(path.join(__dirname, '..', 'dist', 'bundle.js')).toString()
+
+const cloudworker = require('@dollarshaveclub/cloudworker')
+const worker = new cloudworker(script)
+
+worker.dispatch(new cloudworker.Request('https://example.com/path'))
+  .then((res) => {
+    console.log(`Status: ${res.status}`)
+    res.text().then(text => console.log(text))
+  })

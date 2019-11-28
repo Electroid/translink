@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "esnext",                         
+    "module": "commonjs",
+    "lib": ["es6", "dom", "es2019", "webworker"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "sourceMap": true
+  }
+}
