@@ -1,5 +1,5 @@
 import { load } from 'cheerio'
-import { parse, Field } from './scrape'
+import { parse, Field } from './util'
 
 /**
  * A {@link Vehicle} that is operated by Coast Mountain Bus Company.

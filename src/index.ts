@@ -59,11 +59,7 @@ async function getPositions(): Promise<[object, ...Promise<any>[]]> {
   const positions = await translink.getPositions()
 
   return [
-    positions.map(position => {
-      const clone = Object.assign({}, position)
-      delete clone.insertId
-      return clone
-    }),
+    positions,
     google.put('realtime', 'positions', ...positions),
     aws.put('translink-s3', `realtime/positions/${Date.now()}.csv`, ...positions)
   ]

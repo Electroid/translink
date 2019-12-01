@@ -14,7 +14,7 @@ export interface Storage {
    * @param rows An array of objects to save.
    * @returns {Promise<boolean>} Whether the operation was successful.
    */
-  put(namespace: string, key: string, ...rows: object[]): Promise<boolean>;
+  put(namespace: string, key: string, ...rows: any[]): Promise<boolean>;
 }
 
 /**
@@ -27,8 +27,9 @@ export class AwsStorage implements Storage {
     this.client = new AwsClient({ accessKeyId: id, secretAccessKey: secret })
   }
 
-  public async put(namespace: string, key: string, ...rows: object[]): Promise<boolean> {
-    const columns = Object.keys(rows[0]).filter(k => k != 'insertId')
+  public async put(namespace: string, key: string, ...rows: any[]): Promise<boolean> {
+    if(!rows || rows.length <= 0) return false
+    const columns = Object.keys(rows[0])
 
     const res = await this.client.fetch(
       `https://${namespace}.s3.amazonaws.com/${key}`,
@@ -63,7 +64,11 @@ export class GoogleStorage implements Storage {
     this.secret = secret
   }
 
-  public async put(namespace: string, key: string, ...rows: object[]): Promise<boolean> {
+  public async put(namespace: string, key: string, ...rows: any[]): Promise<boolean> {
+    if(!rows || rows.length <= 0) return false
+    if(!rows[0].insertId) {
+      rows = rows.map(row => Object.assign({ insertId: JSON.stringify(row) }, row))
+    }
     const res = await fetch(
       this.endpoint,
       {

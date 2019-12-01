@@ -33,7 +33,7 @@ resource "google_bigquery_table" "positions" {
     "date",
     "route",
     "trip",
-    "timestamp"
+    "stop"
   ]
   time_partitioning {
     type = "DAY"
@@ -72,97 +72,15 @@ resource "google_bigquery_table" "positions" {
       "mode": "REQUIRED"
     },
     {
-      "name": "longitude",
-      "description": "Geographic longitude the vehicle is currently present",
-      "type": "FLOAT",
+      "name": "location",
+      "description": "Geographic location the vehicle is currently present",
+      "type": "GEOGRAPHY",
       "mode": "REQUIRED"
     },
     {
-      "name": "latitude",
-      "description": "Geographic latitude the vehicle is currently present",
-      "type": "FLOAT",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "timestamp",
-      "description": "Unix seconds that the position was observed from the vehicle",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "date",
-      "description": "Service date, which may not be the same date from the timestamp",
-      "type": "DATE",
-      "mode": "REQUIRED"
-    }
-  ]
-  EOF
-}
-
-resource "google_bigquery_table" "positions" {
-  depends_on = [ "google_bigquery_dataset.realtime" ]
-  dataset_id = "${google_bigquery_dataset.realtime.dataset_id}"
-  table_id   = "positions"
-  friendly_name = "Positions"
-  description = "Longitudinal and latitudinal data from buses on the road"
-  clustering = [
-    "date",
-    "route",
-    "trip",
-    "timestamp"
-  ]
-  time_partitioning {
-    type = "DAY"
-    field = "date"
-  }
-  schema = <<EOF
-  [
-    {
-      "name": "vehicle",
-      "description": "Unique identifier for the vehicle",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "direction",
-      "description": "Ordinal representing the heading of the vehicle",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "route",
-      "description": "Identifier for the route the vehicle is traveling along",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "trip",
-      "description": "Identifier for the trip, which represents a route at a given time",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "stop",
-      "description": "Ordinal representing the next trip stop the vehicle is approaching",
-      "type": "INTEGER",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "longitude",
-      "description": "Geographic longitude the vehicle is currently present",
-      "type": "FLOAT",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "latitude",
-      "description": "Geographic latitude the vehicle is currently present",
-      "type": "FLOAT",
-      "mode": "REQUIRED"
-    },
-    {
-      "name": "timestamp",
-      "description": "Unix seconds that the position was observed from the vehicle",
-      "type": "INTEGER",
+      "name": "datetime",
+      "description": "Date and time when the position was observed from the vehicle",
+      "type": "DATETIME",
       "mode": "REQUIRED"
     },
     {
