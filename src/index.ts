@@ -37,6 +37,7 @@ async function onInit(event: FetchEvent): Promise<void> {
   if(!google) {
     google = new GoogleStorage(
       await getEnv('GOOGLE_ENDPOINT'),
+      await getEnv('GOOGLE_PROJECT'),
       await getEnv('GOOGLE_SECRET'))
   }
 
@@ -60,7 +61,7 @@ async function getPositions(): Promise<[object, ...Promise<any>[]]> {
 
   return [
     positions,
-    google.put('realtime', 'positions', ...positions),
-    aws.put('translink-s3', `realtime/positions/${Date.now()}.csv`, ...positions)
+    google.put('positions', 'raw', ...positions),
+    aws.put('translink-s3', `positions/raw/${Date.now()}.csv`, ...positions)
   ]
 }

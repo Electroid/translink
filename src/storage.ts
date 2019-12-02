@@ -31,7 +31,7 @@ export class AwsStorage implements Storage {
     if(!rows || rows.length <= 0) return false
     const columns = Object.keys(rows[0])
 
-    const res = await this.client.fetch(
+    const response = await this.client.fetch(
       `https://${namespace}.s3.amazonaws.com/${key}`,
       {
         method: 'PUT',
@@ -43,11 +43,11 @@ export class AwsStorage implements Storage {
       }
     )
 
-    if(!res.ok) {
-      throw new Error(`${res.status}: ${await res.text()}`)
+    if(!response.ok) {
+      throw new Error(`${response.status}: ${await response.text()}`)
     }
 
-    return res.ok
+    return response.ok
   }
 }
 
@@ -57,38 +57,40 @@ export class AwsStorage implements Storage {
  */
 export class GoogleStorage implements Storage {
   private endpoint: string
+  private project: string
   private secret: string
 
-  constructor(endpoint: string, secret: string) {
+  constructor(endpoint: string, project: string, secret: string) {
     this.endpoint = endpoint
+    this.project = project
     this.secret = secret
   }
 
   public async put(namespace: string, key: string, ...rows: any[]): Promise<boolean> {
     if(!rows || rows.length <= 0) return false
-    if(!rows[0].insertId) {
-      rows = rows.map(row => Object.assign({ insertId: JSON.stringify(row) }, row))
-    }
-    const res = await fetch(
-      this.endpoint,
+    rows = rows.map(row => { return { insertId: JSON.stringify(row), json: row } })
+
+    const response = await fetch(
+      `${this.endpoint}/v2/projects/${this.project}/datasets/${namespace}/tables/${key}/insertAll`,
       {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${this.secret}`
         },
         body: JSON.stringify({
+          kind: [ 'bigquery#tableDataInsertAllRequest' ],
+          skipInvalidRows: true,
+          ignoreUnknownValues: true,
           rows,
-          dataset: namespace,
-          table: key
         })
       }
     )
 
-    if(!res.ok) {
-      throw new Error(`${res.status}: ${await res.text()}`)
+    if(!response.ok) {
+      throw new Error(`${response.status}: ${await response.text()}`)
     }
 
-    return res.ok
+    return response.ok
   }
 }

@@ -1,14 +1,31 @@
+variable "project" {
+  type = "string"
+}
+
+variable "region" {
+  type = "string"
+  default = "us-central1"
+}
+
+variable "bucket" {
+  type = "string"
+}
+
+variable "shared_secret" {
+  type = "string"
+}
+
 provider "google" {
-  project = "translink"
-  region  = "northamerica-northeast1"
+  project = "${var.project}"
+  region  = "${var.region}"
   credentials = "${file("google.json")}"
 }
 
-resource "google_bigquery_dataset" "realtime" {
-  dataset_id    = "realtime"
-  friendly_name = "Realtime"
-  description   = "Stores realtime data from Translink, updated every 15 seconds"
-  location      = "northamerica-northeast1"
+resource "google_bigquery_dataset" "positions" {
+  dataset_id    = "positions"
+  friendly_name = "Positions"
+  description   = "Longitudinal and latitudinal positions from buses on the road"
+  location      = "${var.region}"
   access {
     role          = "OWNER"
     special_group = "projectOwners"
@@ -23,12 +40,12 @@ resource "google_bigquery_dataset" "realtime" {
   }
 }
 
-resource "google_bigquery_table" "positions" {
-  depends_on = [ "google_bigquery_dataset.realtime" ]
-  dataset_id = "${google_bigquery_dataset.realtime.dataset_id}"
-  table_id   = "positions"
-  friendly_name = "Positions"
-  description = "Longitudinal and latitudinal data from buses on the road"
+resource "google_bigquery_table" "positions_raw" {
+  depends_on = [ "google_bigquery_dataset.positions" ]
+  dataset_id = "${google_bigquery_dataset.positions.dataset_id}"
+  table_id   = "raw"
+  friendly_name = "Positions (Raw)"
+  description = "Realtime bus positions, updated every 15 seconds"
   clustering = [
     "date",
     "route",
@@ -91,4 +108,34 @@ resource "google_bigquery_table" "positions" {
     }
   ]
   EOF
+}
+
+data "archive_file" "function_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/func"
+  output_path = "${path.root}/dist/function.zip"
+}
+
+resource "google_storage_bucket_object" "function_object" {
+  depends_on = ["data.archive_file.function_zip"]
+  name   = "function.zip"
+  bucket = "${var.bucket}"
+  source = "${data.archive_file.function_zip.output_path}"
+}
+
+resource "google_cloudfunctions_function" "function" {
+  depends_on = ["google_storage_bucket_object.function_object"]
+  name                  = "proxy"
+  description           = "Proxy for HTTP requests to the BigQuery API"
+  region                = "us-central1" # Functions not yet available in Canada.
+  available_memory_mb   = 128
+  source_archive_bucket = "${google_storage_bucket_object.function_object.bucket}"
+  source_archive_object = "${google_storage_bucket_object.function_object.name}"
+  timeout               = 60
+  entry_point           = "proxy"
+  trigger_http          = true
+  runtime               = "nodejs8"
+  environment_variables = {
+    SECRET = "${var.shared_secret}"
+  }
 }

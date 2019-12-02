@@ -1,0 +1,7 @@
+{
+  "name": "proxy",
+  "description": "Proxy for HTTP requests to the BigQuery API",
+  "dependencies": {
+    "google-auth-library": "5.5.1"
+  }
+}

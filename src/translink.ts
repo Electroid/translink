@@ -188,10 +188,10 @@ export class Translink {
 
   /**
    * Get a list of {@link Trip}s from the schedule data.
-   * @param {Date} date The date of the schedule, usually a Friday.
+   * @param {string} date The date of the schedule, usually a Friday.
    * @returns {Promise<Trip[]>} A list of {@link Trip}s.
    */
-  public async getTrips(date: Date): Promise<Trip[]> {
+  public async getTrips(date?: string): Promise<Trip[]> {
     const raw = await this.getSchedule(date, 'trips.txt')
     const excludes = new Set(['CANADA LINE', 'EXPO LINE', 'MILLENNIUM LINE', 'SEABUS', 'WEST COAST EXPRESS'])
 
@@ -217,10 +217,10 @@ export class Translink {
 
   /**
    * Get a list of {@link Stop}s from the schedule data.
-   * @param {Date} date The date of the schedule, usually a Friday.
+   * @param {string} date The date of the schedule, usually a Friday.
    * @returns {Promise<Stop[]>} A list of {@link Stop}s.
    */
-  public async getStops(date: Date): Promise<Stop[]> {
+  public async getStops(date?: string): Promise<Stop[]> {
     const raw = await this.getSchedule(date, 'stops.txt')
 
     return raw.flatMap(stop => {
@@ -241,10 +241,10 @@ export class Translink {
 
   /**
    * Get a list of {@link Route}s from the schedule data.
-   * @param {Date} date The date of the schedule, usually a Friday.
+   * @param {string} date The date of the schedule, usually a Friday.
    * @returns {Promise<Route[]>} A list of {@link Route}s.
    */
-  public async getRoutes(date: Date): Promise<Route[]> {
+  public async getRoutes(date?: string): Promise<Route[]> {
     const raw = await this.getSchedule(date, 'routes.txt')
 
     return raw.flatMap(route => {
@@ -264,10 +264,10 @@ export class Translink {
 
   /**
    * Get a list of {@link Path}s from the schedule data.
-   * @param {Date} date The date of the schedule, usually a Friday.
+   * @param {string} date The date of the schedule, usually a Friday.
    * @returns {Promise<Path[]>} A list of {@link Path}s.
    */
-  public async getPaths(date: Date): Promise<Path[]> {
+  public async getPaths(date?: string): Promise<Path[]> {
     const points = await this.getSchedule(date, 'shapes.txt'); points.push({})
     const paths = new Array()
 
@@ -312,39 +312,27 @@ export class Translink {
 
   /**
    * Get and decode a Gtfs static schedule data.
-   * @param {Date} date The date of the schedule, usually a Friday.
+   * @param {string} date The date of the schedule, usually a Friday.
    * @param {string} resource The name of the specific resource file.
    * @returns {Promise<any[]>} A list of schedule objects.
    */
-  private async getSchedule(date: Date, resource: string): Promise<any[]> {
-    const version = date.toISOString().split('T')[0]
+  private async getSchedule(date: string | undefined, resource: string): Promise<any[]> {
+    const version = this.getLastFriday(date).toISOString().split('T')[0]
     const url = `https://translinkweb.blob.core.windows.net/gtfs/History/${version}/google_transit.zip`
     const response = await this.fetch(url, 60 * 60 * 24 * 7 * 52)
 
     if(!response.ok) {
-      throw new Error(`Bad schedule ${resource} for ${date.toISOString()}: ${response.status}`)
+      throw new Error(`Bad schedule ${resource} for ${date}: ${response.status}`)
     }
 
     const raw = await this.unzip(await response.arrayBuffer(), resource)
     const result = parse(raw, { header: true, skipEmptyLines: 'greedy' })
 
     if(result.errors && result.errors.length > 0) {
-      throw new Error(`Bad schedule ${resource} format for ${date.toISOString()}: ${JSON.stringify(result.errors)}`)
+      throw new Error(`Bad schedule ${resource} format for ${date}: ${JSON.stringify(result.errors)}`)
     }
 
     return result.data
-  }
-
-  /**
-   * Convert unix seconds since epoch to an ISO-8601 date in Vancouver.
-   * @param epoch Number of seconds since epoch.
-   * @returns {string} An ISO-8601 date.
-   */
-  private getLocalTime(epoch?: number): string {
-    var date = epoch ? new Date(epoch * 1000) : new Date()
-    var parts = date.toLocaleString('en-GB', { timeZone: 'America/Vancouver' }).split(/\D/)
-
-    return `${parts.slice(0, 3).reverse().join('-')}T${parts.slice(4, 7).join(':')}`
   }
 
   /**
@@ -386,5 +374,32 @@ export class Translink {
     }
 
     return inflate((<any>entry)._data.compressedContent, { raw: true, to: 'string' })
+  }
+
+  /**
+   * Get the last Friday of a given {@link Date}.
+   * @param date The date of reference, defaults to now.
+   * @returns {Date} The last Friday.
+   */
+  private getLastFriday(date?: Date | string): Date {
+    date = new Date(date ? date : new Date())
+
+    const day = date.getDay()
+    const diff = day <= 5 ? 7 - 5 + day : day - 5
+
+    date.setDate(date.getDate() - diff)
+    return date
+  }
+
+  /**
+   * Convert unix seconds since epoch to an ISO-8601 date in Vancouver.
+   * @param epoch Number of seconds since epoch.
+   * @returns {string} An ISO-8601 date.
+   */
+  private getLocalTime(epoch?: number): string {
+    var date = epoch ? new Date(epoch * 1000) : new Date()
+    var parts = date.toLocaleString('en-GB', { timeZone: 'America/Vancouver' }).split(/\D/)
+
+    return `${parts.slice(0, 3).reverse().join('-')}T${parts.slice(4, 7).join(':')}`
   }
 }
