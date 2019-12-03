@@ -192,10 +192,10 @@ export class Translink {
    * @returns {Promise<Trip[]>} A list of {@link Trip}s.
    */
   public async getTrips(date?: string): Promise<Trip[]> {
-    const raw = await this.getSchedule(date, 'trips.txt')
+    const trips = await this.getSchedule(date, 'trips.txt')
     const excludes = new Set(['CANADA LINE', 'EXPO LINE', 'MILLENNIUM LINE', 'SEABUS', 'WEST COAST EXPRESS'])
 
-    return raw.flatMap(trip => {
+    return trips.flatMap(trip => {
 
       // Exclude trips that are not serviced by buses.
       for(const exclude of excludes) {
@@ -221,9 +221,9 @@ export class Translink {
    * @returns {Promise<Stop[]>} A list of {@link Stop}s.
    */
   public async getStops(date?: string): Promise<Stop[]> {
-    const raw = await this.getSchedule(date, 'stops.txt')
+    const stops = await this.getSchedule(date, 'stops.txt')
 
-    return raw.flatMap(stop => {
+    return stops.flatMap(stop => {
 
       // Exclude stops that are not intended for buses.
       if(!stop.zone_id.startsWith('BUS')) {
@@ -245,9 +245,9 @@ export class Translink {
    * @returns {Promise<Route[]>} A list of {@link Route}s.
    */
   public async getRoutes(date?: string): Promise<Route[]> {
-    const raw = await this.getSchedule(date, 'routes.txt')
+    const routes = await this.getSchedule(date, 'routes.txt')
 
-    return raw.flatMap(route => {
+    return routes.flatMap(route => {
 
       // Exclude routes that are not serviced by buses.
       if(parseInt(route.route_type) != 3) {
@@ -316,20 +316,24 @@ export class Translink {
    * @param {string} resource The name of the specific resource file.
    * @returns {Promise<any[]>} A list of schedule objects.
    */
-  private async getSchedule(date: string | undefined, resource: string): Promise<any[]> {
+  public async getSchedule(date?: string | undefined, resource?: string): Promise<any[]> {
     const version = this.getLastFriday(date).toISOString().split('T')[0]
     const url = `https://translinkweb.blob.core.windows.net/gtfs/History/${version}/google_transit.zip`
     const response = await this.fetch(url, 60 * 60 * 24 * 7 * 52)
 
     if(!response.ok) {
-      throw new Error(`Bad schedule ${resource} for ${date}: ${response.status}`)
+      throw new Error(`Bad schedule ${resource} for ${version}: ${response.status}`)
+    }
+
+    if(!resource) {
+      return <any>version
     }
 
     const raw = await this.unzip(await response.arrayBuffer(), resource)
     const result = parse(raw, { header: true, skipEmptyLines: 'greedy' })
 
     if(result.errors && result.errors.length > 0) {
-      throw new Error(`Bad schedule ${resource} format for ${date}: ${JSON.stringify(result.errors)}`)
+      throw new Error(`Bad schedule ${resource} format for ${version}: ${JSON.stringify(result.errors)}`)
     }
 
     return result.data
@@ -382,13 +386,17 @@ export class Translink {
    * @returns {Date} The last Friday.
    */
   private getLastFriday(date?: Date | string): Date {
-    date = new Date(date ? date : new Date())
+    const copy = new Date(date ? date : new Date())
 
-    const day = date.getDay()
+    if(isNaN(copy.getTime())) {
+      throw new Error(`Invalid schedule date: ${date}`)
+    }
+
+    const day = copy.getDay()
     const diff = day <= 5 ? 7 - 5 + day : day - 5
 
-    date.setDate(date.getDate() - diff)
-    return date
+    copy.setDate(copy.getDate() - diff)
+    return copy
   }
 
   /**
@@ -396,7 +404,7 @@ export class Translink {
    * @param epoch Number of seconds since epoch.
    * @returns {string} An ISO-8601 date.
    */
-  private getLocalTime(epoch?: number): string {
+  public getLocalTime(epoch?: number): string {
     var date = epoch ? new Date(epoch * 1000) : new Date()
     var parts = date.toLocaleString('en-GB', { timeZone: 'America/Vancouver' }).split(/\D/)
 
