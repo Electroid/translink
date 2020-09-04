@@ -34,7 +34,7 @@
     "h3-js": "^3.6.1",
     "jszip": "^3.2.2",
     "pako": "^1.0.10",
-    "papaparse": "^5.1.0",
+    "papaparse": "^5.2.0",
     "pigeon": "github:tlianza/pigeon"
   },
   "devDependencies": {
